@@ -1,0 +1,190 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        144,
+        0
+      ],
+      "id": "7e1c3863-b5a6-40d0-8345-b45d1a5b9a1a",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "options": {}
+      },
+      "name": "RSS Feed",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        336,
+        0
+      ],
+      "id": "be15293b-8320-4e29-8f84-5f8da3d7d89a"
+    },
+    {
+      "parameters": {
+        "functionCode": "\n// Get all items from RSS feed\nconst allItems = $input.all();\n\n// If no items, return a fallback\nif (allItems.length === 0) {\n\treturn [\n\t\t{\n\t\t\tjson: {\n\t\t\t\taggregatedNews: \"No news found today.\",\n\t\t\t\tcount: 0\n\t\t\t}\n\t\t}\n\t];\n}\n\n// Extract title, description, and link from each item\nconst newsStrings = allItems.map(item => {\n\tconst title = item.json.title || 'No title';\n\tconst description = item.json.description || '';\n\tconst link = item.json.link || '';\n\treturn `${title}\\n${description}\\n[Read more](${link})`;\n});\n\n// Join all into one string\nconst aggregatedNews = newsStrings.join('\\n\\n---\\n\\n');\n\n// Return exactly ONE item\nreturn [\n\t{\n\t\tjson: {\n\t\t\taggregatedNews: aggregatedNews,\n\t\t\tcount: allItems.length,\n\t\t\tsummary: `Aggregated ${allItems.length} news items into one digest.`\n\t\t}\n\t}\n];"
+      },
+      "name": "Aggregate News",
+      "type": "n8n-nodes-base.functionItem",
+      "typeVersion": 1,
+      "position": [
+        528,
+        0
+      ],
+      "id": "3180c0e2-6a90-4db4-a1f5-4e9c261cc662"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json['0'].json.aggregatedNews }}",
+        "options": {
+          "systemMessage": "Summarize input text into concise, ready-to-post tweets. Have 10 different outputs Output complete tweets (280 chars or less) that can be copied directly. Preserve key information and intent strictly from the input."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        976,
+        0
+      ],
+      "id": "5e29462b-89b5-44e0-90d0-61aa67b470f6",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatCohere",
+      "typeVersion": 1,
+      "position": [
+        896,
+        192
+      ],
+      "id": "d29a13d4-cd20-4510-bce3-4589314cddc7",
+      "name": "Cohere Chat Model",
+      "credentials": {
+        "cohereApi": {
+          "id": "jTE4Ol2PZmA1cbQ5",
+          "name": "CohereApi account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        752,
+        0
+      ],
+      "id": "3db1483b-5330-4596-a1eb-1457ead101ef",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR-CHAT-ID",
+        "text": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1328,
+        0
+      ],
+      "id": "375703ee-2d97-4bad-ad22-5197b0c67c5c",
+      "name": "Send a text message",
+      "webhookId": "fdd7cfc8-122c-4c87-80c1-c11030ee8c2f",
+      "credentials": {
+        "telegramApi": {
+          "id": "UfpmxTUIz33kQG2P",
+          "name": "Telegram account 3"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "RSS Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Feed": {
+      "main": [
+        [
+          {
+            "node": "Aggregate News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate News": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cohere Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1efc3d76fa127d96400db5c37840949eced8c5cc2b3f41157e7cce20e9669b79"
+  }
+}
